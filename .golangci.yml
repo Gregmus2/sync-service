@@ -1,0 +1,49 @@
+run:
+  skip-dirs:
+    - internal/mocks
+  tests: false
+  allow-parallel-runners: true
+  timeout: 5m
+  modules-download-mode: readonly
+linters:
+  enable-all: true
+  disable:
+    - gochecknoglobals
+    - gochecknoinits
+    - lll
+    - scopelint
+    - interfacer
+    - exhaustivestruct
+    - wsl
+    - goerr113
+    - wrapcheck
+    - gomnd
+    - godot
+    - goimports
+    - gofumpt
+    - gci
+    - forcetypeassert
+    - ireturn
+    - nilnil
+    - varnamelen
+    - contextcheck
+    - maligned
+    - golint
+    - exhaustruct
+    - nosnakecase
+    - ifshort
+    - varcheck
+    - deadcode
+    - structcheck
+    - rowserrcheck
+    - sqlclosecheck
+    - wastedassign
+    - depguard
+    - tagliatelle
+    - tagalign
+    - noctx
+  fast: false
+linters-settings:
+  govet:
+    disable:
+      - composites

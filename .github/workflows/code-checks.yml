@@ -1,0 +1,43 @@
+name: golangci-lint
+on:
+  push:
+    branches:
+      - ci
+  pull_request:
+jobs:
+  golangci:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Configure git for private modules
+        env:
+          GIT_ACCESS_TOKEN: ${{ secrets.GIT_ACCESS_TOKEN }}
+        run: git config --global url."https://${GIT_ACCESS_TOKEN}@github.com/".insteadOf "https://github.com/"
+      - name: golangci-lint
+        env:
+          GOPRIVATE: github.com/res-am
+        uses: golangci/golangci-lint-action@v3
+        with:
+          # Optional: version of golangci-lint to use in form of v1.2 or v1.2.3 or `latest` to use the latest version
+          version: v1.55.2
+          only-new-issues: true
+
+  tests:
+    name: tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.21
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Configure git for private modules
+        env:
+          GIT_ACCESS_TOKEN: ${{ secrets.GIT_ACCESS_TOKEN }}
+        run: git config --global url."https://${GIT_ACCESS_TOKEN}@github.com/".insteadOf "https://github.com/"
+      - name: Test
+        env:
+          GOPRIVATE: github.com/gregmus2
+        run: go test ./...
