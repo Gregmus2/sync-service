@@ -1,7 +1,7 @@
 package presenters
 
 import (
-	"github.com/GregmusCo/poll-play-golang-core/interceptors"
+	"github.com/Gregmus2/go-grpc-core/interceptors"
 )
 
 func NewErrorMapping() interceptors.ErrorMapping {
