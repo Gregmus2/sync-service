@@ -21,8 +21,7 @@ var migrations = []string{
 			device_token   TEXT                              NOT NULL,
 			group_id       TEXT                              NOT NULL,
 			operation_type TEXT                              NOT NULL,
-			sql            TEXT                              NOT NULL,
-			created_at     INTEGER                           NOT NULL
+			sql            TEXT                              NOT NULL
 		);`,
 	`CREATE TABLE IF NOT EXISTS related_entities
 		(
@@ -132,50 +131,41 @@ func (r repository) UpdateDeviceTokenTime(deviceToken, userID, groupID string) e
 }
 
 func (r repository) InsertData(deviceToken, groupID string, operations []*proto.Operation) error {
-	err := r.db.Begin()
-	if err != nil {
-		return errors.Wrap(err, "failed to start transaction")
-	}
-	defer r.db.Rollback()
-
-	operationsStmt, err := r.db.Prepare(
-		`INSERT INTO operations(device_token, group_id, operation_type, sql, created_at) 
-				VALUES(?, ?, ?, ?, ?)`,
-	)
-	if err != nil {
-		return errors.Wrap(err, "failed to prepare operations insert statement")
-	}
-	defer operationsStmt.Close()
-
-	relatedEntitiesStmt, err := r.db.Prepare(
-		`INSERT INTO related_entities (operation_id, entity_id, entity_name) 
-				VALUES (last_insert_rowid(), ?, ?);`,
-	)
-	if err != nil {
-		return errors.Wrap(err, "failed to prepare related_entities insert statement")
-	}
-	defer relatedEntitiesStmt.Close()
-
-	for _, op := range operations {
-		err = operationsStmt.Exec(deviceToken, groupID, op.Type.String(), op.Sql, time.Now().Unix())
+	return r.db.WithTx(func() error {
+		operationsStmt, err := r.db.Prepare(
+			`INSERT INTO operations(device_token, group_id, operation_type, sql) 
+				VALUES(?, ?, ?, ?)`,
+		)
 		if err != nil {
-			return errors.Wrap(err, "failed to insert data")
+			return errors.Wrap(err, "failed to prepare operations insert statement")
 		}
+		defer operationsStmt.Close()
 
-		for _, entity := range op.RelatedEntities {
-			err = relatedEntitiesStmt.Exec(entity.Id, entity.Name)
+		relatedEntitiesStmt, err := r.db.Prepare(
+			`INSERT INTO related_entities (operation_id, entity_id, entity_name) 
+				VALUES (last_insert_rowid(), ?, ?);`,
+		)
+		if err != nil {
+			return errors.Wrap(err, "failed to prepare related_entities insert statement")
+		}
+		defer relatedEntitiesStmt.Close()
+
+		for _, op := range operations {
+			err = operationsStmt.Exec(deviceToken, groupID, op.Type.String(), op.Sql, time.Now().Unix())
 			if err != nil {
-				return errors.Wrap(err, "failed to insert related entities")
+				return errors.Wrap(err, "failed to insert data")
+			}
+
+			for _, entity := range op.RelatedEntities {
+				err = relatedEntitiesStmt.Exec(entity.Id, entity.Name)
+				if err != nil {
+					return errors.Wrap(err, "failed to insert related entities")
+				}
 			}
 		}
-	}
 
-	err = r.db.Commit()
-	if err != nil {
-		return errors.Wrap(err, "failed to commit transaction")
-	}
-
-	return nil
+		return nil
+	})
 }
 
 func (r repository) CleanConflicted(deviceToken, groupID string) error {
@@ -244,6 +234,10 @@ func (r repository) GetData(deviceToken, groupID string) ([]*proto.Operation, er
 	}
 	defer stmt.Close()
 
+	return r.queryData(stmt)
+}
+
+func (r repository) queryData(stmt *gosqlite.Stmt) ([]*proto.Operation, error) {
 	rows := make([]*proto.Operation, 0)
 	var lastOperation *proto.Operation
 	var lastID int
@@ -280,4 +274,116 @@ func (r repository) GetData(deviceToken, groupID string) ([]*proto.Operation, er
 	}
 
 	return rows, nil
+}
+
+func (r repository) UpdateGroupID(userID, newGroupID string) error {
+	err := r.db.Exec(
+		`UPDATE device_tokens SET group_id = ? WHERE user_id = ?`, newGroupID, userID,
+	)
+	if err != nil {
+		return errors.Wrap(err, "failed to update group id")
+	}
+
+	return nil
+}
+
+func (r repository) MigrateData(fromID, toID string) error {
+	err := r.db.Exec(
+		`UPDATE operations SET group_id = ?, created_at = now() WHERE group_id = ?`, toID, fromID,
+	)
+	if err != nil {
+		return errors.Wrap(err, "failed to migrate data")
+	}
+
+	return nil
+}
+
+func (r repository) RemoveData(userID string) error {
+	err := r.db.Exec(
+		`DELETE FROM operations WHERE group_id = ?`, userID,
+	)
+	if err != nil {
+		return errors.Wrap(err, "failed to remove data")
+	}
+
+	return nil
+}
+
+func (r repository) GetAllData(groupID string) ([]*proto.Operation, error) {
+	stmt, err := r.db.Prepare(
+		`SELECT id, operation_type, sql, entity_id, entity_name
+				FROM operations 
+				JOIN related_entities ON operations.id = related_entities.operation_id
+				WHERE group_id = ?`,
+		groupID,
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to prepare select data")
+	}
+	defer stmt.Close()
+
+	return r.queryData(stmt)
+}
+
+func (r repository) CopyOperations(fromID, toID string) error {
+	return r.db.WithTx(func() error {
+		selectStmt, err := r.db.Prepare(
+			`SELECT id, device_token, operation_type, sql, created_at
+				FROM operations
+				WHERE group_id = ?`,
+			fromID,
+		)
+		if err != nil {
+			return errors.Wrap(err, "failed to prepare select data")
+		}
+		defer selectStmt.Close()
+
+		insertStmt, err := r.db.Prepare(
+			`INSERT INTO operations(device_token, group_id, operation_type, sql, created_at) 
+				VALUES(?, ?, ?, ?, ?)`,
+		)
+		if err != nil {
+			return errors.Wrap(err, "failed to prepare operations insert statement")
+		}
+		defer insertStmt.Close()
+
+		relatedEntitiesStmt, err := r.db.Prepare(
+			`INSERT INTO related_entities (operation_id, entity_id, entity_name) 
+				SELECT last_insert_rowid(), entity_id, entity_name FROM related_entities
+					WHERE operation_id = ?;`,
+		)
+		if err != nil {
+			return errors.Wrap(err, "failed to prepare related_entities insert statement")
+		}
+		defer relatedEntitiesStmt.Close()
+
+		for {
+			hasRow, err := selectStmt.Step()
+			if err != nil {
+				return errors.Wrap(err, "failed to step select data")
+			}
+			if !hasRow {
+				break
+			}
+
+			var id, createdAt int
+			var deviceToken, operationType, sql string
+			err = selectStmt.Scan(&id, &deviceToken, &operationType, &sql, &createdAt)
+			if err != nil {
+				return errors.Wrap(err, "failed to scan select data")
+			}
+
+			err = insertStmt.Exec(deviceToken, toID, operationType, sql, createdAt)
+			if err != nil {
+				return errors.Wrap(err, "failed to insert data")
+			}
+
+			err = relatedEntitiesStmt.Exec(id)
+			if err != nil {
+				return errors.Wrap(err, "failed to insert related data")
+			}
+		}
+
+		return nil
+	})
 }

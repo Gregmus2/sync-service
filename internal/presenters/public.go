@@ -33,10 +33,24 @@ func (p Public) SyncData(ctx context.Context, request *sync_proto.SyncDataReques
 	return &sync_proto.SyncDataResponse{Operations: operations}, nil
 }
 
-func (p Public) JoinGroup(ctx context.Context, request *sync_proto.JoinGroupRequest) (*emptypb.Empty, error) {
+func (p Public) JoinGroup(ctx context.Context, request *sync_proto.JoinGroupRequest) (*sync_proto.SyncDataResponse, error) {
+	firebaseID := ctx.Value(interceptors.ContextFirebaseID).(string)
 
+	operations, err := p.service.JoinGroup(firebaseID, request.Group, request.MergeData)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to join group")
+	}
+
+	return &sync_proto.SyncDataResponse{Operations: operations}, nil
 }
 
 func (p Public) LeaveGroup(ctx context.Context, request *sync_proto.LeaveGroupRequest) (*emptypb.Empty, error) {
+	firebaseID := ctx.Value(interceptors.ContextFirebaseID).(string)
 
+	err := p.service.LeaveGroup(firebaseID, request.Group, request.CopyData)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to leave group")
+	}
+
+	return &emptypb.Empty{}, nil
 }

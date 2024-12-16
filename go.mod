@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/Gregmus2/go-grpc-core v1.2.0
-	github.com/Gregmus2/sync-proto-gen v1.0.4
+	github.com/Gregmus2/sync-proto-gen v1.0.6
 	github.com/caarlos0/env v3.5.0+incompatible
 	github.com/eatonphil/gosqlite v0.10.0
 	github.com/go-ozzo/ozzo-validation v3.6.0+incompatible
