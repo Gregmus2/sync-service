@@ -2,7 +2,9 @@ FROM gregmus2/golang-base:1.23 as builder
 
 COPY . .
 
-RUN go build -o /go/bin/app ./cmd/app/main.go
+RUN apk add gcc musl-dev
+
+RUN CGO_ENABLED=1 go build -o /go/bin/app ./cmd/app/main.go
 
 FROM alpine:latest
 
