@@ -1,4 +1,4 @@
-FROM gregmus2/golang-base as builder
+FROM gregmus2/golang-base:1.23 as builder
 
 COPY . .
 

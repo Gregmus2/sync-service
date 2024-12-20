@@ -21,7 +21,8 @@ var migrations = []string{
 			device_token   TEXT                              NOT NULL,
 			group_id       TEXT                              NOT NULL,
 			operation_type TEXT                              NOT NULL,
-			sql            TEXT                              NOT NULL
+			sql            TEXT                              NOT NULL,
+			created_at     INTEGER                           NOT NULL
 		);`,
 	`CREATE TABLE IF NOT EXISTS related_entities
 		(
@@ -29,7 +30,7 @@ var migrations = []string{
 			entity_id    TEXT    NOT NULL,
 			entity_name  TEXT    NOT NULL,
 			PRIMARY KEY (operation_id, entity_id, entity_name),
-			FOREIGN KEY (operation_id) REFERENCES operations (id)
+			FOREIGN KEY (operation_id) REFERENCES operations (id) ON DELETE CASCADE ON UPDATE CASCADE
 		) WITHOUT ROWID;`,
 	`CREATE INDEX operations_group_id_idx ON operations(group_id, created_at);`,
 	`CREATE INDEX operations_conflicts_query_idx ON operations(operation_type, group_id, id);`,
@@ -120,7 +121,7 @@ func migrate(db *gosqlite.Conn) error {
 
 func (r repository) UpdateDeviceTokenTime(deviceToken, userID, groupID string) error {
 	err := r.db.Exec(
-		`INSERT INTO device_tokens(device_token, user_id, group_id, last_sync) VALUES(?, ?) 
+		`INSERT INTO device_tokens(device_token, user_id, group_id, last_sync) VALUES(?, ?, ?, ?) 
 				ON CONFLICT(device_token) DO UPDATE SET last_sync=excluded.last_sync;`,
 		deviceToken, userID, groupID, time.Now().Unix())
 	if err != nil {
@@ -133,8 +134,8 @@ func (r repository) UpdateDeviceTokenTime(deviceToken, userID, groupID string) e
 func (r repository) InsertData(deviceToken, groupID string, operations []*proto.Operation) error {
 	return r.db.WithTx(func() error {
 		operationsStmt, err := r.db.Prepare(
-			`INSERT INTO operations(device_token, group_id, operation_type, sql) 
-				VALUES(?, ?, ?, ?)`,
+			`INSERT INTO operations(device_token, group_id, operation_type, sql, created_at) 
+				VALUES(?, ?, ?, ?, ?)`,
 		)
 		if err != nil {
 			return errors.Wrap(err, "failed to prepare operations insert statement")
@@ -289,7 +290,7 @@ func (r repository) UpdateGroupID(userID, newGroupID string) error {
 
 func (r repository) MigrateData(fromID, toID string) error {
 	err := r.db.Exec(
-		`UPDATE operations SET group_id = ?, created_at = now() WHERE group_id = ?`, toID, fromID,
+		`UPDATE operations SET group_id = ?, created_at = unixepoch() WHERE group_id = ?`, toID, fromID,
 	)
 	if err != nil {
 		return errors.Wrap(err, "failed to migrate data")
