@@ -15,4 +15,5 @@ type Repository interface {
 	RemoveData(groupID string) error
 	GetAllData(groupID string) ([]*proto.Operation, error)
 	CopyOperations(fromID, toID string) error
+	GetCurrentGroup(userID string) (*string, error)
 }

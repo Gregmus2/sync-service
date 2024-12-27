@@ -83,7 +83,8 @@ func TestRepository_InsertData(t *testing.T) {
 		operations := []*proto.Operation{
 			{
 				Type: proto.Operation_OPERATION_CREATE,
-				Sql:  "INSERT INTO table1 (id, name) VALUES (1, 'test')",
+				Sql:  "INSERT INTO table1 (id, name) VALUES (?, ?)",
+				Args: "[1, 'test']",
 				RelatedEntities: []*proto.Operation_Entity{
 					{Id: "1", Name: "table1"},
 				},
@@ -145,7 +146,8 @@ func TestRepository_GetData(t *testing.T) {
 	operationsDevice2 := []*proto.Operation{
 		{
 			Type: proto.Operation_OPERATION_CREATE,
-			Sql:  "INSERT INTO table1 (id, name) VALUES (1, 'test')",
+			Sql:  "INSERT INTO table1 (id, name) VALUES (?, ?)",
+			Args: "[1, 'test']",
 			RelatedEntities: []*proto.Operation_Entity{
 				{Id: "1", Name: "table1"},
 			},
@@ -157,7 +159,8 @@ func TestRepository_GetData(t *testing.T) {
 	operationsDevice3 := []*proto.Operation{
 		{
 			Type: proto.Operation_OPERATION_UPDATE,
-			Sql:  "UPDATE table1 SET name = 'updated' WHERE id = 1",
+			Sql:  "UPDATE table1 SET name = ? WHERE id = ?",
+			Args: "['updated', 1]",
 			RelatedEntities: []*proto.Operation_Entity{
 				{Id: "1", Name: "table1"},
 			},
@@ -214,7 +217,8 @@ func TestRepository_MigrateData(t *testing.T) {
 	operations := []*proto.Operation{
 		{
 			Type: proto.Operation_OPERATION_CREATE,
-			Sql:  "INSERT INTO table1 (id, name) VALUES (1, 'test')",
+			Sql:  "INSERT INTO table1 (id, name) VALUES (?, ?)",
+			Args: "[1, 'test']",
 			RelatedEntities: []*proto.Operation_Entity{
 				{Id: "1", Name: "table1"},
 			},
@@ -252,7 +256,8 @@ func TestRepository_RemoveData(t *testing.T) {
 	operations := []*proto.Operation{
 		{
 			Type: proto.Operation_OPERATION_CREATE,
-			Sql:  "INSERT INTO table1 (id, name) VALUES (1, 'test')",
+			Sql:  "INSERT INTO table1 (id, name) VALUES (?, ?)",
+			Args: "[1, 'test']",
 			RelatedEntities: []*proto.Operation_Entity{
 				{Id: "1", Name: "table1"},
 			},
@@ -290,7 +295,8 @@ func TestRepository_GetAllData(t *testing.T) {
 	operations := []*proto.Operation{
 		{
 			Type: proto.Operation_OPERATION_CREATE,
-			Sql:  "INSERT INTO table1 (id, name) VALUES (1, 'test')",
+			Sql:  "INSERT INTO table1 (id, name) VALUES (?, ?)",
+			Args: "[1, 'test']",
 			RelatedEntities: []*proto.Operation_Entity{
 				{Id: "1", Name: "table1"},
 			},
@@ -318,7 +324,8 @@ func TestRepository_CopyOperations(t *testing.T) {
 	operations := []*proto.Operation{
 		{
 			Type: proto.Operation_OPERATION_CREATE,
-			Sql:  "INSERT INTO table1 (id, name) VALUES (1, 'test')",
+			Sql:  "INSERT INTO table1 (id, name) VALUES (?, ?)",
+			Args: "[1, 'test']",
 			RelatedEntities: []*proto.Operation_Entity{
 				{Id: "1", Name: "table1"},
 			},

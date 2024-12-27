@@ -5,7 +5,7 @@ go 1.23
 require (
 	firebase.google.com/go v3.13.0+incompatible
 	github.com/Gregmus2/go-grpc-core v1.2.0
-	github.com/Gregmus2/sync-proto-gen v1.0.6
+	github.com/Gregmus2/sync-proto-gen v1.0.9
 	github.com/caarlos0/env v3.5.0+incompatible
 	github.com/eatonphil/gosqlite v0.10.0
 	github.com/go-ozzo/ozzo-validation v3.6.0+incompatible
@@ -31,6 +31,7 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.24.1 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.48.1 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.48.1 // indirect
+	github.com/Gregmus2/common-cvt v1.2.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

@@ -2,7 +2,9 @@ package presenters
 
 import (
 	"context"
+	ccvt "github.com/Gregmus2/common-cvt"
 	sync_proto "github.com/Gregmus2/sync-proto-gen/go/sync"
+	"github.com/Gregmus2/sync-service/internal/adapters"
 	"github.com/Gregmus2/sync-service/internal/interceptors"
 	"github.com/Gregmus2/sync-service/internal/logic"
 	"github.com/pkg/errors"
@@ -13,11 +15,13 @@ type Public struct {
 	sync_proto.UnimplementedSyncServiceServer
 
 	service logic.Service
+	repo    adapters.Repository
 }
 
-func NewAPI(service logic.Service) sync_proto.SyncServiceServer {
+func NewAPI(service logic.Service, repo adapters.Repository) sync_proto.SyncServiceServer {
 	return &Public{
 		service: service,
+		repo:    repo,
 	}
 }
 
@@ -53,4 +57,15 @@ func (p Public) LeaveGroup(ctx context.Context, request *sync_proto.LeaveGroupRe
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+func (p Public) GetCurrentGroup(ctx context.Context, request *emptypb.Empty) (*sync_proto.GetCurrentGroupResponse, error) {
+	firebaseID := ctx.Value(interceptors.ContextFirebaseID).(string)
+
+	groupID, err := p.repo.GetCurrentGroup(firebaseID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get current group")
+	}
+
+	return &sync_proto.GetCurrentGroupResponse{Group: ccvt.ToProtoStringWrapper(groupID)}, nil
 }
