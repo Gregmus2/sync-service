@@ -4,6 +4,7 @@ import "github.com/caarlos0/env"
 
 type Config struct {
 	FirebaseProjectID string `env:"FIREBASE_PROJECT_ID" envDefault:""`
+	DatabaseFQDN      string `env:"DATABASE_FQDN"`
 }
 
 func NewConfig() (*Config, error) {

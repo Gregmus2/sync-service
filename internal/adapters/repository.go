@@ -2,129 +2,41 @@ package adapters
 
 import (
 	proto "github.com/Gregmus2/sync-proto-gen/go/sync"
-	"github.com/eatonphil/gosqlite"
+	"github.com/Gregmus2/sync-service/internal/common"
 	"github.com/pkg/errors"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"time"
 )
 
-var migrations = []string{
-	`CREATE TABLE IF NOT EXISTS device_tokens
-		(
-			device_token TEXT PRIMARY KEY NOT NULL,
-			user_id	     TEXT,
-			group_id     TEXT,
-			last_sync    INTEGER
-		) WITHOUT ROWID;`,
-	`CREATE TABLE IF NOT EXISTS operations
-		(
-			id             INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-			device_token   TEXT                              NOT NULL,
-			group_id       TEXT                              NOT NULL,
-			operation_type TEXT                              NOT NULL,
-			sql            TEXT                              NOT NULL,
-			args           TEXT,
-			created_at     INTEGER                           NOT NULL
-		);`,
-	`CREATE TABLE IF NOT EXISTS related_entities
-		(
-			operation_id INTEGER NOT NULL,
-			entity_id    TEXT    NOT NULL,
-			entity_name  TEXT    NOT NULL,
-			PRIMARY KEY (operation_id, entity_id, entity_name),
-			FOREIGN KEY (operation_id) REFERENCES operations (id) ON DELETE CASCADE ON UPDATE CASCADE
-		) WITHOUT ROWID;`,
-	`CREATE INDEX operations_group_id_idx ON operations(group_id, created_at);`,
-	`CREATE INDEX operations_conflicts_query_idx ON operations(operation_type, group_id, id);`,
-}
-
 type repository struct {
-	db *gosqlite.Conn
+	client *gorm.DB
 }
 
-func NewRepository(db *gosqlite.Conn) (Repository, error) {
-	if err := migrate(db); err != nil {
-		return nil, errors.Wrap(err, "failed to run migrations")
+func NewDB(cfg *common.Config) (*gorm.DB, error) {
+	db, err := gorm.Open(postgres.Open(cfg.DatabaseFQDN), &gorm.Config{
+		FullSaveAssociations: true,
+		Logger:               logger.Default.LogMode(logger.Info),
+	})
+	if err != nil {
+		return nil, err
 	}
 
+	return db, nil
+}
+
+func NewRepository(db *gorm.DB) (Repository, error) {
 	return &repository{
-		db: db,
+		client: db,
 	}, nil
 }
 
-func NewDB() (*gosqlite.Conn, error) {
-	conn, err := gosqlite.Open("main.db")
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to open db")
-	}
-
-	conn.BusyTimeout(5 * time.Second)
-
-	return conn, nil
-}
-
-func migrate(db *gosqlite.Conn) error {
-	err := db.Exec(`PRAGMA foreign_keys = ON;`)
-	if err != nil {
-		return errors.Wrap(err, "failed to enable foreign keys")
-	}
-	err = db.Exec(`PRAGMA journal_mode=WAL;`)
-	if err != nil {
-		return errors.Wrap(err, "failed to enable WAL logs")
-	}
-	err = db.Exec(`PRAGMA synchronous = NORMAL`)
-	if err != nil {
-		return errors.Wrap(err, "failed to update synchronous mod")
-	}
-
-	var version int
-	stmt, err := db.Prepare(`SELECT version FROM migrations`)
-	if err != nil && err.Error() == "sqlite3: no such table: migrations [1]" {
-		err = db.Exec(`CREATE TABLE migrations (version INTEGER)`)
-		if err != nil {
-			return errors.Wrap(err, "failed to create migrations table")
-		}
-		err = db.Exec(`INSERT INTO migrations (version) VALUES (0)`)
-		if err != nil {
-			return errors.Wrap(err, "failed to create migrations table")
-		}
-		stmt, err = db.Prepare(`SELECT version FROM migrations`)
-	}
-	if err != nil {
-		return errors.Wrap(err, "failed to prepare migrations select")
-	}
-	defer stmt.Close()
-
-	hasRow, err := stmt.Step()
-	if err != nil {
-		return errors.Wrap(err, "failed to step migrations select")
-	}
-	if hasRow {
-		err = stmt.Scan(&version)
-		if err != nil {
-			return errors.Wrap(err, "failed to scan migrations select")
-		}
-	}
-
-	for i := version; i < len(migrations); i++ {
-		err := db.Exec(migrations[i])
-		if err != nil {
-			return errors.Wrapf(err, "failed to run migration %d", i)
-		}
-	}
-
-	err = db.Exec("UPDATE migrations SET version = ?", len(migrations))
-	if err != nil {
-		return errors.Wrap(err, "failed to update migrations version")
-	}
-
-	return nil
-}
-
 func (r repository) UpdateDeviceTokenTime(deviceToken, userID, groupID string) error {
-	err := r.db.Exec(
+	err := r.client.Exec(
 		`INSERT INTO device_tokens(device_token, user_id, group_id, last_sync) VALUES(?, ?, ?, ?) 
 				ON CONFLICT(device_token) DO UPDATE SET last_sync=excluded.last_sync;`,
-		deviceToken, userID, groupID, time.Now().Unix())
+		deviceToken, userID, groupID, time.Now().Unix()).Error
 	if err != nil {
 		return errors.Wrap(err, "failed to update device token time")
 	}
@@ -133,33 +45,24 @@ func (r repository) UpdateDeviceTokenTime(deviceToken, userID, groupID string) e
 }
 
 func (r repository) InsertData(deviceToken, groupID string, operations []*proto.Operation) error {
-	return r.db.WithTx(func() error {
-		operationsStmt, err := r.db.Prepare(
-			`INSERT INTO operations(device_token, group_id, operation_type, sql, args, created_at) 
-				VALUES(?, ?, ?, ?, ?, ?)`,
-		)
-		if err != nil {
-			return errors.Wrap(err, "failed to prepare operations insert statement")
-		}
-		defer operationsStmt.Close()
-
-		relatedEntitiesStmt, err := r.db.Prepare(
-			`INSERT INTO related_entities (operation_id, entity_id, entity_name) 
-				VALUES (last_insert_rowid(), ?, ?);`,
-		)
-		if err != nil {
-			return errors.Wrap(err, "failed to prepare related_entities insert statement")
-		}
-		defer relatedEntitiesStmt.Close()
-
+	return r.client.Transaction(func(tx *gorm.DB) error {
 		for _, op := range operations {
-			err = operationsStmt.Exec(deviceToken, groupID, op.Type.String(), op.Sql, op.Args, time.Now().Unix())
+			operation := &common.Operation{
+				DeviceToken:   deviceToken,
+				GroupId:       groupID,
+				OperationType: op.Type.String(),
+				Sql:           op.Sql,
+				Args:          op.Args,
+				CreatedAt:     time.Now().Unix(),
+			}
+			err := tx.Create(operation).Error
 			if err != nil {
 				return errors.Wrap(err, "failed to insert data")
 			}
 
 			for _, entity := range op.RelatedEntities {
-				err = relatedEntitiesStmt.Exec(entity.Id, entity.Name)
+				err = tx.Exec(`INSERT INTO related_entities (operation_id, entity_id, entity_name) 
+				VALUES (?, ?, ?);`, operation.ID, entity.Id, entity.Name).Error
 				if err != nil {
 					return errors.Wrap(err, "failed to insert related entities")
 				}
@@ -171,7 +74,7 @@ func (r repository) InsertData(deviceToken, groupID string, operations []*proto.
 }
 
 func (r repository) CleanConflicted(deviceToken, groupID string) error {
-	err := r.db.Exec(
+	err := r.client.Exec(
 		`DELETE FROM operations
 				WHERE group_id = ?
 				  AND created_at > coalesce((SELECT last_sync
@@ -187,7 +90,7 @@ func (r repository) CleanConflicted(deviceToken, groupID string) error {
 								AND op2.group_id = operations.group_id
 								AND op2.id < operations.id);`,
 		groupID, deviceToken,
-	)
+	).Error
 	if err != nil {
 		return errors.Wrap(err, "failed to delete conflicts")
 	}
@@ -196,33 +99,31 @@ func (r repository) CleanConflicted(deviceToken, groupID string) error {
 }
 
 func (r repository) GetGroupID(userID string) (string, error) {
-	stmt, err := r.db.Prepare(`SELECT coalesce(group_id, user_id) FROM device_tokens`)
+	var groupID string
+	err := r.client.Raw(`SELECT coalesce(group_id, user_id) FROM device_tokens`).Scan(&groupID).Error
 	if err != nil {
 		return "", errors.Wrap(err, "failed to prepare select group id")
 	}
-	defer stmt.Close()
 
-	hasRow, err := stmt.Step()
-	if err != nil {
-		return "", errors.Wrap(err, "failed to step select group id")
-	}
-
-	if !hasRow {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// return user id if group id is not set to keep user in own group
 		return userID, nil
-	}
-
-	var groupID string
-	err = stmt.Scan(&groupID)
-	if err != nil {
-		return "", errors.Wrap(err, "failed to scan select group id")
 	}
 
 	return groupID, nil
 }
 
+type data struct {
+	ID            int
+	OperationType string
+	Sql           string
+	Args          string
+	EntityID      string
+	EntityName    string
+}
+
 func (r repository) GetData(deviceToken, groupID string) ([]*proto.Operation, error) {
-	stmt, err := r.db.Prepare(
+	return r.queryData(r.client.Raw(
 		`SELECT id, operation_type, sql, args, entity_id, entity_name
 				FROM operations 
 				JOIN related_entities ON operations.id = related_entities.operation_id
@@ -230,49 +131,34 @@ func (r repository) GetData(deviceToken, groupID string) ([]*proto.Operation, er
 				      device_token != ? and 
 				      created_at > (SELECT last_sync FROM device_tokens WHERE device_token = ?)`,
 		groupID, deviceToken, deviceToken,
-	)
+	))
+}
+
+func (r repository) queryData(tx *gorm.DB) ([]*proto.Operation, error) {
+	operations := make([]*data, 0)
+	err := tx.Scan(&operations).Error
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to prepare select data")
 	}
-	defer stmt.Close()
 
-	return r.queryData(stmt)
-}
-
-func (r repository) queryData(stmt *gosqlite.Stmt) ([]*proto.Operation, error) {
 	rows := make([]*proto.Operation, 0)
 	var lastOperation *proto.Operation
 	var lastID int
-	for {
-		hasRow, err := stmt.Step()
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to step select data")
-		}
-		if !hasRow {
-			break
-		}
-
-		var id int
-		var opType, sql, args, entityID, entityName string
-		err = stmt.Scan(&id, &opType, &sql, &entityID, &entityName)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to scan select data")
-		}
-
-		if lastOperation == nil || lastID != id {
+	for _, op := range operations {
+		if lastOperation == nil || lastID != op.ID {
 			lastOperation = &proto.Operation{
-				Type:            proto.Operation_OperationType(proto.Operation_OperationType_value[opType]),
-				Sql:             sql,
-				Args:            args,
+				Type:            proto.Operation_OperationType(proto.Operation_OperationType_value[op.OperationType]),
+				Sql:             op.Sql,
+				Args:            op.Args,
 				RelatedEntities: make([]*proto.Operation_Entity, 0),
 			}
-			lastID = id
+			lastID = op.ID
 			rows = append(rows, lastOperation)
 		}
 
 		lastOperation.RelatedEntities = append(lastOperation.RelatedEntities, &proto.Operation_Entity{
-			Id:   entityID,
-			Name: entityName,
+			Id:   op.EntityID,
+			Name: op.EntityName,
 		})
 	}
 
@@ -280,9 +166,9 @@ func (r repository) queryData(stmt *gosqlite.Stmt) ([]*proto.Operation, error) {
 }
 
 func (r repository) UpdateGroupID(userID, newGroupID string) error {
-	err := r.db.Exec(
+	err := r.client.Exec(
 		`UPDATE device_tokens SET group_id = ? WHERE user_id = ?`, newGroupID, userID,
-	)
+	).Error
 	if err != nil {
 		return errors.Wrap(err, "failed to update group id")
 	}
@@ -291,9 +177,9 @@ func (r repository) UpdateGroupID(userID, newGroupID string) error {
 }
 
 func (r repository) MigrateData(fromID, toID string) error {
-	err := r.db.Exec(
+	err := r.client.Exec(
 		`UPDATE operations SET group_id = ?, created_at = unixepoch() WHERE group_id = ?`, toID, fromID,
-	)
+	).Error
 	if err != nil {
 		return errors.Wrap(err, "failed to migrate data")
 	}
@@ -302,9 +188,9 @@ func (r repository) MigrateData(fromID, toID string) error {
 }
 
 func (r repository) RemoveData(userID string) error {
-	err := r.db.Exec(
+	err := r.client.Exec(
 		`DELETE FROM operations WHERE group_id = ?`, userID,
-	)
+	).Error
 	if err != nil {
 		return errors.Wrap(err, "failed to remove data")
 	}
@@ -313,77 +199,49 @@ func (r repository) RemoveData(userID string) error {
 }
 
 func (r repository) GetAllData(groupID string) ([]*proto.Operation, error) {
-	stmt, err := r.db.Prepare(
+	return r.queryData(r.client.Raw(
 		`SELECT id, operation_type, sql, args, entity_id, entity_name
 				FROM operations 
 				JOIN related_entities ON operations.id = related_entities.operation_id
 				WHERE group_id = ?`,
 		groupID,
-	)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to prepare select data")
-	}
-	defer stmt.Close()
-
-	return r.queryData(stmt)
+	))
 }
 
 func (r repository) CopyOperations(fromID, toID string) error {
-	return r.db.WithTx(func() error {
-		selectStmt, err := r.db.Prepare(
+	return r.client.Transaction(func(tx *gorm.DB) error {
+		operations := make([]common.Operation, 0)
+		err := r.client.Raw(
 			`SELECT id, device_token, operation_type, sql, args, created_at
 				FROM operations
 				WHERE group_id = ?`,
 			fromID,
-		)
+		).Scan(&operations).Error
 		if err != nil {
 			return errors.Wrap(err, "failed to prepare select data")
 		}
-		defer selectStmt.Close()
 
-		insertStmt, err := r.db.Prepare(
-			`INSERT INTO operations(device_token, group_id, operation_type, sql, args, created_at) 
-				VALUES(?, ?, ?, ?, ?, ?)`,
-		)
-		if err != nil {
-			return errors.Wrap(err, "failed to prepare operations insert statement")
-		}
-		defer insertStmt.Close()
-
-		relatedEntitiesStmt, err := r.db.Prepare(
-			`INSERT INTO related_entities (operation_id, entity_id, entity_name) 
-				SELECT last_insert_rowid(), entity_id, entity_name FROM related_entities
-					WHERE operation_id = ?;`,
-		)
-		if err != nil {
-			return errors.Wrap(err, "failed to prepare related_entities insert statement")
-		}
-		defer relatedEntitiesStmt.Close()
-
-		for {
-			hasRow, err := selectStmt.Step()
-			if err != nil {
-				return errors.Wrap(err, "failed to step select data")
+		for _, op := range operations {
+			operation := &common.Operation{
+				DeviceToken:   op.DeviceToken,
+				GroupId:       toID,
+				OperationType: op.OperationType,
+				Sql:           op.Sql,
+				Args:          op.Args,
+				CreatedAt:     op.CreatedAt,
 			}
-			if !hasRow {
-				break
-			}
-
-			var id, createdAt int
-			var deviceToken, operationType, sql, args string
-			err = selectStmt.Scan(&id, &deviceToken, &operationType, &sql, &args, &createdAt)
-			if err != nil {
-				return errors.Wrap(err, "failed to scan select data")
-			}
-
-			err = insertStmt.Exec(deviceToken, toID, operationType, sql, args, createdAt)
+			err = tx.Create(operation).Error
 			if err != nil {
 				return errors.Wrap(err, "failed to insert data")
 			}
 
-			err = relatedEntitiesStmt.Exec(id)
+			err = r.client.Exec(
+				`INSERT INTO related_entities (operation_id, entity_id, entity_name) 
+				SELECT ?, entity_id, entity_name FROM related_entities
+					WHERE operation_id = ?;`, operation.ID, op.ID,
+			).Error
 			if err != nil {
-				return errors.Wrap(err, "failed to insert related data")
+				return errors.Wrap(err, "failed to insert related entities")
 			}
 		}
 
@@ -392,25 +250,14 @@ func (r repository) CopyOperations(fromID, toID string) error {
 }
 
 func (r repository) GetCurrentGroup(userID string) (*string, error) {
-	stmt, err := r.db.Prepare(`SELECT group_id FROM device_tokens WHERE user_id = ? LIMIT 1`, userID)
+	var groupID string
+	err := r.client.Raw(`SELECT group_id FROM device_tokens WHERE user_id = ? LIMIT 1`, userID).
+		Scan(&groupID).Error
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to prepare select group id")
 	}
-	defer stmt.Close()
-
-	hasRow, err := stmt.Step()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to step select group id")
-	}
-
-	if !hasRow {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
-	}
-
-	var groupID string
-	err = stmt.Scan(&groupID)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to scan select group id")
 	}
 
 	return &groupID, nil
