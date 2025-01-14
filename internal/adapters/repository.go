@@ -44,28 +44,26 @@ func (r repository) UpdateDeviceTokenTime(deviceToken, userID, groupID string) e
 	return nil
 }
 
-func (r repository) InsertData(deviceToken, groupID string, operations []*proto.Operation) error {
+func (r repository) InsertData(deviceToken, groupID string, op *proto.Operation) error {
 	return r.client.Transaction(func(tx *gorm.DB) error {
-		for _, op := range operations {
-			operation := &common.Operation{
-				DeviceToken:   deviceToken,
-				GroupId:       groupID,
-				OperationType: op.Type.String(),
-				Sql:           op.Sql,
-				Args:          op.Args,
-				CreatedAt:     time.Now().Unix(),
-			}
-			err := tx.Create(operation).Error
-			if err != nil {
-				return errors.Wrap(err, "failed to insert data")
-			}
+		operation := &common.Operation{
+			DeviceToken:   deviceToken,
+			GroupId:       groupID,
+			OperationType: op.Type.String(),
+			Sql:           op.Sql,
+			Args:          op.Args,
+			CreatedAt:     time.Now().Unix(),
+		}
+		err := tx.Create(operation).Error
+		if err != nil {
+			return errors.Wrap(err, "failed to insert data")
+		}
 
-			for _, entity := range op.RelatedEntities {
-				err = tx.Exec(`INSERT INTO related_entities (operation_id, entity_id, entity_name) 
+		for _, entity := range op.RelatedEntities {
+			err = tx.Exec(`INSERT INTO related_entities (operation_id, entity_id, entity_name) 
 				VALUES (?, ?, ?);`, operation.ID, entity.Id, entity.Name).Error
-				if err != nil {
-					return errors.Wrap(err, "failed to insert related entities")
-				}
+			if err != nil {
+				return errors.Wrap(err, "failed to insert related entities")
 			}
 		}
 

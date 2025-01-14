@@ -6,7 +6,7 @@ import (
 
 type Repository interface {
 	UpdateDeviceTokenTime(deviceToken, userID, groupID string) error
-	InsertData(deviceToken, groupID string, operations []*proto.Operation) error
+	InsertData(deviceToken, groupID string, operation *proto.Operation) error
 	CleanConflicted(deviceToken, groupID string) error
 	GetGroupID(userID string) (string, error)
 	GetData(deviceToken, groupID string) ([]*proto.Operation, error)

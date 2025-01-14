@@ -5,13 +5,12 @@ go 1.23
 require (
 	firebase.google.com/go v3.13.0+incompatible
 	github.com/Gregmus2/common-cvt v1.2.0
-	github.com/Gregmus2/go-grpc-core v1.2.0
-	github.com/Gregmus2/sync-proto-gen v1.0.9
+	github.com/Gregmus2/go-grpc-core v1.2.1
+	github.com/Gregmus2/sync-proto-gen v1.0.10
 	github.com/caarlos0/env v3.5.0+incompatible
-	github.com/eatonphil/gosqlite v0.10.0
-	github.com/go-ozzo/ozzo-validation v3.6.0+incompatible
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
 	github.com/pkg/errors v0.9.1
+	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/fx v1.22.2
 	google.golang.org/grpc v1.67.1
@@ -34,7 +33,6 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.24.1 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.48.1 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.48.1 // indirect
-	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20240905190251-b4127c9b8d78 // indirect
@@ -58,7 +56,6 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/takt-corp/fx-logrus v1.0.1 // indirect
 	go.opencensus.io v0.24.0 // indirect

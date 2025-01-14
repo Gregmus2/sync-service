@@ -25,6 +25,7 @@ func main() {
 					&interceptors2.AuthInterceptor{},
 					&interceptors2.DeviceTokenInterceptor{},
 				},
+				Stream: true,
 			},
 		},
 		fx.Provide(
@@ -35,6 +36,7 @@ func main() {
 			adapters.NewFirebaseClient,
 			logic.NewGroupMutex,
 			logic.NewService,
+			logic.NewWorkerPool,
 			presenters.NewErrorMapping,
 			presenters.NewValidator,
 		),

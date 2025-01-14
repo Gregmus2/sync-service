@@ -25,27 +25,28 @@ func NewAPI(service logic.Service, repo adapters.Repository) sync_proto.SyncServ
 	}
 }
 
-func (p Public) SyncData(ctx context.Context, request *sync_proto.SyncDataRequest) (*sync_proto.SyncDataResponse, error) {
-	deviceToken := ctx.Value(interceptors.ContextDeviceToken).(string)
-	firebaseID := ctx.Value(interceptors.ContextFirebaseID).(string)
+func (p Public) SyncData(stream sync_proto.SyncService_SyncDataServer) error {
+	deviceToken := stream.Context().Value(interceptors.ContextDeviceToken).(string)
+	firebaseID := stream.Context().Value(interceptors.ContextFirebaseID).(string)
 
-	operations, err := p.service.SyncData(deviceToken, firebaseID, request.Operations)
+	err := p.service.SyncData(deviceToken, firebaseID, stream)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to sync data")
+		return errors.Wrap(err, "failed to sync data")
 	}
 
-	return &sync_proto.SyncDataResponse{Operations: operations}, nil
+	return nil
 }
 
-func (p Public) JoinGroup(ctx context.Context, request *sync_proto.JoinGroupRequest) (*sync_proto.SyncDataResponse, error) {
-	firebaseID := ctx.Value(interceptors.ContextFirebaseID).(string)
+func (p Public) JoinGroup(request *sync_proto.JoinGroupRequest, server sync_proto.SyncService_JoinGroupServer) error {
+	panic("implement me")
+	//firebaseID := server.Context().Value(interceptors.ContextFirebaseID).(string)
 
-	operations, err := p.service.JoinGroup(firebaseID, request.Group, request.MergeData)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to join group")
-	}
+	//operations, err := p.service.JoinGroup(firebaseID, request.Group, request.MergeData)
+	//if err != nil {
+	//	return errors.Wrap(err, "failed to join group")
+	//}
 
-	return &sync_proto.SyncDataResponse{Operations: operations}, nil
+	return nil
 }
 
 func (p Public) LeaveGroup(ctx context.Context, request *sync_proto.LeaveGroupRequest) (*emptypb.Empty, error) {

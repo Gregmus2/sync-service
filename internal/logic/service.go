@@ -10,43 +10,51 @@ type service struct {
 	mx GroupMutex
 
 	repo adapters.Repository
+	wp   WorkerPool
 }
 
-func NewService(mx GroupMutex, repo adapters.Repository) Service {
+func NewService(mx GroupMutex, repo adapters.Repository, wp WorkerPool) Service {
 	return &service{
 		mx:   mx,
 		repo: repo,
+		wp:   wp,
 	}
 }
 
-func (s *service) SyncData(deviceToken, userID string, operations []*proto.Operation) ([]*proto.Operation, error) {
+func (s *service) SyncData(deviceToken, userID string, stream proto.SyncService_SyncDataServer) error {
 	groupID, err := s.repo.GetGroupID(userID)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get group id")
+		return errors.Wrap(err, "failed to get group id")
 	}
 
 	s.mx.Lock(groupID)
 	defer s.mx.Unlock(groupID)
 
-	if err := s.repo.InsertData(deviceToken, groupID, operations); err != nil {
-		return nil, errors.Wrap(err, "failed to insert data")
-	}
-
-	if err := s.repo.CleanConflicted(deviceToken, groupID); err != nil {
-		return nil, errors.Wrap(err, "failed to remove conflicts")
-	}
+	wg := s.wp.Add(stream)
 
 	data, err := s.repo.GetData(deviceToken, groupID)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get data")
+		return errors.Wrap(err, "failed to get data")
 	}
 
-	err = s.repo.UpdateDeviceTokenTime(deviceToken, userID, groupID)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to sync device token")
+	for _, operation := range data {
+		err = stream.Send(operation)
+		if err != nil {
+			return errors.Wrap(err, "failed to send data")
+		}
 	}
 
-	return data, nil
+	wg.Wait()
+
+	if err := s.repo.CleanConflicted(deviceToken, groupID); err != nil {
+		return errors.Wrap(err, "failed to clean conflicts")
+	}
+
+	if err := s.repo.UpdateDeviceTokenTime(deviceToken, userID, groupID); err != nil {
+		return errors.Wrap(err, "failed to update device token time")
+	}
+
+	return nil
 }
 
 func (s *service) JoinGroup(userID, groupID string, mergeData bool) ([]*proto.Operation, error) {
