@@ -96,9 +96,10 @@ func (r repository) CleanConflicted(deviceToken, groupID string) error {
 	return nil
 }
 
-func (r repository) GetGroupID(userID string) (string, error) {
+func (r repository) GetGroupID(deviceToken, userID string) (string, error) {
 	var groupID string
-	err := r.client.Raw(`SELECT coalesce(group_id, user_id) FROM device_tokens`).Scan(&groupID).Error
+	err := r.client.Raw(`SELECT CASE WHEN group_id = '' THEN user_id ELSE group_id END FROM device_tokens 
+		WHERE device_token = ? LIMIT 1`, deviceToken).Scan(&groupID).Error
 	if err != nil {
 		return "", errors.Wrap(err, "failed to prepare select group id")
 	}

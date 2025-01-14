@@ -8,7 +8,7 @@ type Repository interface {
 	UpdateDeviceTokenTime(deviceToken, userID, groupID string) error
 	InsertData(deviceToken, groupID string, operation *proto.Operation) error
 	CleanConflicted(deviceToken, groupID string) error
-	GetGroupID(userID string) (string, error)
+	GetGroupID(deviceToken, userID string) (string, error)
 	GetData(deviceToken, groupID string) ([]*proto.Operation, error)
 	UpdateGroupID(userID, newGroupID string) error
 	MigrateData(fromID, toID string) error

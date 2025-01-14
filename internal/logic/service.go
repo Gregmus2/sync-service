@@ -22,7 +22,7 @@ func NewService(mx GroupMutex, repo adapters.Repository, wp WorkerPool) Service 
 }
 
 func (s *service) SyncData(deviceToken, userID string, stream proto.SyncService_SyncDataServer) error {
-	groupID, err := s.repo.GetGroupID(userID)
+	groupID, err := s.repo.GetGroupID(deviceToken, userID)
 	if err != nil {
 		return errors.Wrap(err, "failed to get group id")
 	}
