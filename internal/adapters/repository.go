@@ -125,7 +125,7 @@ func (r repository) GetData(deviceToken, groupID string) ([]*proto.Operation, er
 	return r.queryData(r.client.Raw(
 		`SELECT id, operation_type, sql, args, entity_id, entity_name
 				FROM operations 
-				JOIN related_entities ON operations.id = related_entities.operation_id
+				LEFT JOIN related_entities ON operations.id = related_entities.operation_id
 				WHERE group_id = ? and 
 				      device_token != ? and 
 				      created_at > (SELECT last_sync FROM device_tokens WHERE device_token = ?)`,
@@ -201,7 +201,7 @@ func (r repository) GetAllData(groupID string) ([]*proto.Operation, error) {
 	return r.queryData(r.client.Raw(
 		`SELECT id, operation_type, sql, args, entity_id, entity_name
 				FROM operations 
-				JOIN related_entities ON operations.id = related_entities.operation_id
+				LEFT JOIN related_entities ON operations.id = related_entities.operation_id
 				WHERE group_id = ?`,
 		groupID,
 	))
