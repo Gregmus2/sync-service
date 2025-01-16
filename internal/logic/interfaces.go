@@ -7,8 +7,8 @@ import (
 
 type Service interface {
 	SyncData(deviceToken, userID string, server proto.SyncService_SyncDataServer) error
-	JoinGroup(userID, groupID string, mergeData bool) ([]*proto.Operation, error)
-	LeaveGroup(userID, groupID string, copyData bool) error
+	JoinGroup(deviceToken, userID, groupID string, mergeData bool, stream proto.SyncService_JoinGroupServer) error
+	LeaveGroup(deviceToken, userID string, copyData bool) error
 }
 
 type GroupMutex interface {

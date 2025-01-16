@@ -40,6 +40,8 @@ github.com/Gregmus2/go-grpc-core v1.2.1 h1:xcn3xobzttQqP+kEZ746d1t4YEe9bSFtIjbto
 github.com/Gregmus2/go-grpc-core v1.2.1/go.mod h1:jUXGNrIoWDGf3xC5knPSvh1eGYYQEapWoMaPjuV3gKs=
 github.com/Gregmus2/sync-proto-gen v1.0.10 h1:oSJHjOdQwwAelkXqiZ4E+Qlti0HpqfpBOlk4NjJU4h8=
 github.com/Gregmus2/sync-proto-gen v1.0.10/go.mod h1:aDaNFw7NdkDeCSV9NVU8Tu83qDkKksGLtzQen96M00c=
+github.com/Gregmus2/sync-proto-gen v1.0.13 h1:uTXwlENFJ/8hwEWfh8udtPTT5Dk4UJz5TtolfXsftxA=
+github.com/Gregmus2/sync-proto-gen v1.0.13/go.mod h1:aDaNFw7NdkDeCSV9NVU8Tu83qDkKksGLtzQen96M00c=
 github.com/caarlos0/env v3.5.0+incompatible h1:Yy0UN8o9Wtr/jGHZDpCBLpNrzcFLLM2yixi/rBrKyJs=
 github.com/caarlos0/env v3.5.0+incompatible/go.mod h1:tdCsowwCzMLdkqRYDlHpZCp2UooDD3MspDBjZ2AD02Y=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=

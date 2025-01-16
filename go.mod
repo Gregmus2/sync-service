@@ -6,7 +6,7 @@ require (
 	firebase.google.com/go v3.13.0+incompatible
 	github.com/Gregmus2/common-cvt v1.2.0
 	github.com/Gregmus2/go-grpc-core v1.2.1
-	github.com/Gregmus2/sync-proto-gen v1.0.10
+	github.com/Gregmus2/sync-proto-gen v1.0.13
 	github.com/caarlos0/env v3.5.0+incompatible
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
 	github.com/pkg/errors v0.9.1

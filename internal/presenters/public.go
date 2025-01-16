@@ -2,7 +2,6 @@ package presenters
 
 import (
 	"context"
-	ccvt "github.com/Gregmus2/common-cvt"
 	sync_proto "github.com/Gregmus2/sync-proto-gen/go/sync"
 	"github.com/Gregmus2/sync-service/internal/adapters"
 	"github.com/Gregmus2/sync-service/internal/interceptors"
@@ -37,22 +36,23 @@ func (p Public) SyncData(stream sync_proto.SyncService_SyncDataServer) error {
 	return nil
 }
 
-func (p Public) JoinGroup(request *sync_proto.JoinGroupRequest, server sync_proto.SyncService_JoinGroupServer) error {
-	panic("implement me")
-	//firebaseID := server.Context().Value(interceptors.ContextFirebaseID).(string)
+func (p Public) JoinGroup(request *sync_proto.JoinGroupRequest, stream sync_proto.SyncService_JoinGroupServer) error {
+	deviceToken := stream.Context().Value(interceptors.ContextDeviceToken).(string)
+	firebaseID := stream.Context().Value(interceptors.ContextFirebaseID).(string)
 
-	//operations, err := p.service.JoinGroup(firebaseID, request.Group, request.MergeData)
-	//if err != nil {
-	//	return errors.Wrap(err, "failed to join group")
-	//}
+	err := p.service.JoinGroup(deviceToken, firebaseID, request.Group, request.MergeData, stream)
+	if err != nil {
+		return errors.Wrap(err, "failed to join group")
+	}
 
 	return nil
 }
 
 func (p Public) LeaveGroup(ctx context.Context, request *sync_proto.LeaveGroupRequest) (*emptypb.Empty, error) {
+	deviceToken := ctx.Value(interceptors.ContextDeviceToken).(string)
 	firebaseID := ctx.Value(interceptors.ContextFirebaseID).(string)
 
-	err := p.service.LeaveGroup(firebaseID, request.Group, request.CopyData)
+	err := p.service.LeaveGroup(deviceToken, firebaseID, request.CopyData)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to leave group")
 	}
@@ -60,13 +60,14 @@ func (p Public) LeaveGroup(ctx context.Context, request *sync_proto.LeaveGroupRe
 	return &emptypb.Empty{}, nil
 }
 
-func (p Public) GetCurrentGroup(ctx context.Context, request *emptypb.Empty) (*sync_proto.GetCurrentGroupResponse, error) {
+func (p Public) GetCurrentGroup(ctx context.Context, _ *emptypb.Empty) (*sync_proto.GetCurrentGroupResponse, error) {
+	deviceToken := ctx.Value(interceptors.ContextDeviceToken).(string)
 	firebaseID := ctx.Value(interceptors.ContextFirebaseID).(string)
 
-	groupID, err := p.repo.GetCurrentGroup(firebaseID)
+	groupID, err := p.repo.GetGroupID(deviceToken, firebaseID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get current group")
 	}
 
-	return &sync_proto.GetCurrentGroupResponse{Group: ccvt.ToProtoStringWrapper(groupID)}, nil
+	return &sync_proto.GetCurrentGroupResponse{Group: groupID}, nil
 }

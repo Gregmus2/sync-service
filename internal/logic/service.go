@@ -6,6 +6,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+var (
+	ErrGroupNotFound = errors.New("group not found")
+	ErrNotInGroup    = errors.New("not in group")
+)
+
 type service struct {
 	mx GroupMutex
 
@@ -57,37 +62,81 @@ func (s *service) SyncData(deviceToken, userID string, stream proto.SyncService_
 	return nil
 }
 
-func (s *service) JoinGroup(userID, groupID string, mergeData bool) ([]*proto.Operation, error) {
+func (s *service) JoinGroup(deviceToken, userID, groupID string, mergeData bool, stream proto.SyncService_JoinGroupServer) error {
+	exists, err := s.repo.IsGroupExists(groupID)
+	if err != nil {
+		return errors.Wrap(err, "failed to check if group exists")
+	}
+	if !exists {
+		return ErrGroupNotFound
+	}
+
+	currentGroupID, err := s.repo.GetGroupID(deviceToken, userID)
+	if err != nil {
+		return errors.Wrap(err, "failed to get group id")
+	}
+
 	s.mx.Lock(groupID)
+	s.mx.Lock(currentGroupID)
 	defer s.mx.Unlock(groupID)
+	defer s.mx.Unlock(currentGroupID)
 
 	// retrieve all operations from the group first, because later they will be mixed with the user's operations
 	operations, err := s.repo.GetAllData(groupID)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get all data")
+		return errors.Wrap(err, "failed to get all data")
+	}
+
+	if mergeData {
+		unsyncedOperations, err := s.repo.GetData(deviceToken, currentGroupID)
+		if err != nil {
+			return errors.Wrap(err, "failed to get data")
+		}
+
+		operations = append(operations, unsyncedOperations...)
+	}
+
+	for _, operation := range operations {
+		err = stream.Send(operation)
+		if err != nil {
+			return errors.Wrap(err, "failed to send data")
+		}
 	}
 
 	err = s.repo.UpdateGroupID(userID, groupID)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to update group id")
+		return errors.Wrap(err, "failed to update group id")
+	}
+
+	err = s.repo.UpdateDeviceTokenTime(deviceToken, userID, groupID)
+	if err != nil {
+		return errors.Wrap(err, "failed to update device token time")
 	}
 
 	if mergeData {
-		err = s.repo.MigrateData(userID, groupID)
+		err = s.repo.MigrateData(currentGroupID, groupID)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to migrate data")
+			return errors.Wrap(err, "failed to migrate data")
 		}
 	} else {
-		err = s.repo.RemoveData(userID)
+		err = s.repo.RemoveData(currentGroupID)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to remove data")
+			return errors.Wrap(err, "failed to remove data")
 		}
 	}
 
-	return operations, nil
+	return nil
 }
 
-func (s *service) LeaveGroup(userID, groupID string, copyData bool) error {
+func (s *service) LeaveGroup(deviceToken, userID string, copyData bool) error {
+	groupID, err := s.repo.GetGroupID(deviceToken, userID)
+	if err != nil {
+		return errors.Wrap(err, "failed to get group id")
+	}
+	if groupID == userID {
+		return ErrNotInGroup
+	}
+
 	s.mx.Lock(groupID)
 	defer s.mx.Unlock(groupID)
 
@@ -100,7 +149,7 @@ func (s *service) LeaveGroup(userID, groupID string, copyData bool) error {
 
 	// todo check if group has any users left and remove group and data if not
 
-	err := s.repo.UpdateGroupID(userID, userID)
+	err = s.repo.UpdateGroupID(userID, userID)
 	if err != nil {
 		return errors.Wrap(err, "failed to update group id")
 	}
