@@ -119,13 +119,13 @@ type data struct {
 
 func (r repository) GetData(deviceToken, groupID string) ([]*proto.SimpleOperation, error) {
 	return r.queryData(r.client.Raw(
-		groupID, deviceToken, deviceToken,
 		`SELECT sql, args
 				FROM operations
 				WHERE group_id = ? and 
 				      device_token != ? and 
 				      created_at > (SELECT last_sync FROM device_tokens WHERE device_token = ?) and 
 						(args != '[]' or operations.operation_type != 'OPERATION_DELETE')`,
+		groupID, deviceToken, deviceToken,
 	))
 }
 
