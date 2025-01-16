@@ -82,7 +82,7 @@ func (r repository) CleanConflicted(deviceToken, groupID string) error {
 							  FROM operations AS op2
 									   JOIN related_entities re2 on op2.id = re2.operation_id
 									   JOIN related_entities re on operations.id = re.operation_id
-							  WHERE op2.operation_type = 'DELETE'
+							  WHERE op2.operation_type = 'OPERATION_DELETE'
 								AND re2.entity_name = re.entity_name
 								AND re2.entity_id = re.entity_id
 								AND op2.group_id = operations.group_id
@@ -125,7 +125,7 @@ func (r repository) GetData(deviceToken, groupID string) ([]*proto.SimpleOperati
 				WHERE group_id = ? and 
 				      device_token != ? and 
 				      created_at > (SELECT last_sync FROM device_tokens WHERE device_token = ?) and 
-						(args != '[]' || operations.operation_type != 'DELETE')`,
+						(args != '[]' or operations.operation_type != 'OPERATION_DELETE')`,
 	))
 }
 
@@ -184,7 +184,7 @@ func (r repository) GetAllData(groupID string) ([]*proto.SimpleOperation, error)
 	return r.queryData(r.client.Raw(
 		`SELECT sql, args
 				FROM operations 
-				WHERE group_id = ? and (args != '[]' || operations.operation_type != 'DELETE')`,
+				WHERE group_id = ? and (args != '[]' or operations.operation_type != 'OPERATION_DELETE')`,
 		groupID,
 	))
 }
