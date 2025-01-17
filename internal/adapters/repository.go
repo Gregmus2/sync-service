@@ -104,7 +104,7 @@ func (r repository) GetGroupID(deviceToken, userID string) (string, error) {
 		return "", errors.Wrap(err, "failed to prepare select group id")
 	}
 
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if errors.Is(err, gorm.ErrRecordNotFound) || groupID == "" {
 		// return user id if group id is not set to keep user in own group
 		return userID, nil
 	}
@@ -123,7 +123,7 @@ func (r repository) GetData(deviceToken, groupID string) ([]*proto.SimpleOperati
 				FROM operations
 				WHERE group_id = ? and 
 				      device_token != ? and 
-				      created_at > (SELECT last_sync FROM device_tokens WHERE device_token = ?) and 
+				      created_at > coalesce((SELECT last_sync FROM device_tokens WHERE device_token = ?), 0) and 
 						(args != '[]' or operations.operation_type != 'OPERATION_DELETE')`,
 		groupID, deviceToken, deviceToken,
 	))
