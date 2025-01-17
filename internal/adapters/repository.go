@@ -124,7 +124,8 @@ func (r repository) GetData(deviceToken, groupID string) ([]*proto.SimpleOperati
 				WHERE group_id = ? and 
 				      device_token != ? and 
 				      created_at > coalesce((SELECT last_sync FROM device_tokens WHERE device_token = ?), 0) and 
-						(args != '[]' or operations.operation_type != 'OPERATION_DELETE')`,
+						(args != '[]' or operations.operation_type != 'OPERATION_DELETE')
+				ORDER BY id`,
 		groupID, deviceToken, deviceToken,
 	))
 }
@@ -184,7 +185,8 @@ func (r repository) GetAllData(groupID string) ([]*proto.SimpleOperation, error)
 	return r.queryData(r.client.Raw(
 		`SELECT sql, args
 				FROM operations 
-				WHERE group_id = ? and (args != '[]' or operations.operation_type != 'OPERATION_DELETE')`,
+				WHERE group_id = ? and (args != '[]' or operations.operation_type != 'OPERATION_DELETE')
+				ORDER BY id`,
 		groupID,
 	))
 }
