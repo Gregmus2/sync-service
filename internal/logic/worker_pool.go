@@ -54,7 +54,7 @@ func (wp workerPool) worker(in chan job) {
 		userID := j.stream.Context().Value(interceptors.ContextFirebaseID).(string)
 
 		for {
-			operation, err := j.stream.Recv()
+			operations, err := j.stream.Recv()
 			if errors.Is(err, io.EOF) {
 				break
 			}
@@ -64,7 +64,7 @@ func (wp workerPool) worker(in chan job) {
 				break
 			}
 
-			err = wp.repo.InsertData(deviceToken, userID, operation)
+			err = wp.repo.InsertData(deviceToken, userID, operations.Operations)
 			if err != nil {
 				wp.logger.WithError(err).Error("failed to insert data")
 

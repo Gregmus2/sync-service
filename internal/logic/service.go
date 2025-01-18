@@ -11,6 +11,8 @@ var (
 	ErrNotInGroup    = errors.New("not in group")
 )
 
+const chunkSize = 1000
+
 type service struct {
 	mx GroupMutex
 
@@ -42,8 +44,13 @@ func (s *service) SyncData(deviceToken, userID string, stream proto.SyncService_
 		return errors.Wrap(err, "failed to get data")
 	}
 
-	for _, operation := range data {
-		err = stream.Send(operation)
+	for i := 0; i < len(data); i += chunkSize {
+		end := i + chunkSize
+		if end > len(data) {
+			end = len(data)
+		}
+
+		err = stream.Send(&proto.SimpleOperations{Operations: data[i:end]})
 		if err != nil {
 			return errors.Wrap(err, "failed to send data")
 		}
@@ -96,8 +103,13 @@ func (s *service) JoinGroup(deviceToken, userID, groupID string, mergeData bool,
 		operations = append(operations, unsyncedOperations...)
 	}
 
-	for _, operation := range operations {
-		err = stream.Send(operation)
+	for i := 0; i < len(operations); i += chunkSize {
+		end := i + chunkSize
+		if end > len(operations) {
+			end = len(operations)
+		}
+
+		err = stream.Send(&proto.SimpleOperations{Operations: operations[i:end]})
 		if err != nil {
 			return errors.Wrap(err, "failed to send data")
 		}
