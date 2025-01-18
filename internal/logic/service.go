@@ -37,7 +37,7 @@ func (s *service) SyncData(deviceToken, userID string, stream proto.SyncService_
 	s.mx.Lock(groupID)
 	defer s.mx.Unlock(groupID)
 
-	wg := s.wp.Add(stream)
+	wg := s.wp.Add(stream, groupID)
 
 	data, err := s.repo.GetData(deviceToken, groupID)
 	if err != nil {

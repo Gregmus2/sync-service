@@ -17,5 +17,5 @@ type GroupMutex interface {
 }
 
 type WorkerPool interface {
-	Add(server proto.SyncService_SyncDataServer) *sync.WaitGroup
+	Add(server proto.SyncService_SyncDataServer, groupID string) *sync.WaitGroup
 }

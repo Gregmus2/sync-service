@@ -18,8 +18,9 @@ type workerPool struct {
 }
 
 type job struct {
-	stream proto.SyncService_SyncDataServer
-	wg     *sync.WaitGroup
+	stream  proto.SyncService_SyncDataServer
+	wg      *sync.WaitGroup
+	groupID string
 }
 
 func NewWorkerPool(cfg *common.Config, repo adapters.Repository, logger *logrus.Entry) WorkerPool {
@@ -37,12 +38,13 @@ func NewWorkerPool(cfg *common.Config, repo adapters.Repository, logger *logrus.
 	return pool
 }
 
-func (wp workerPool) Add(stream proto.SyncService_SyncDataServer) *sync.WaitGroup {
+func (wp workerPool) Add(stream proto.SyncService_SyncDataServer, groupID string) *sync.WaitGroup {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	wp.in <- job{
-		stream: stream,
-		wg:     &wg,
+		stream:  stream,
+		wg:      &wg,
+		groupID: groupID,
 	}
 
 	return &wg
@@ -51,7 +53,6 @@ func (wp workerPool) Add(stream proto.SyncService_SyncDataServer) *sync.WaitGrou
 func (wp workerPool) worker(in chan job) {
 	for j := range in {
 		deviceToken := j.stream.Context().Value(interceptors.ContextDeviceToken).(string)
-		userID := j.stream.Context().Value(interceptors.ContextFirebaseID).(string)
 
 		for {
 			operations, err := j.stream.Recv()
@@ -64,7 +65,7 @@ func (wp workerPool) worker(in chan job) {
 				break
 			}
 
-			err = wp.repo.InsertData(deviceToken, userID, operations.Operations)
+			err = wp.repo.InsertData(deviceToken, j.groupID, operations.Operations)
 			if err != nil {
 				wp.logger.WithError(err).Error("failed to insert data")
 
