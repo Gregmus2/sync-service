@@ -36,7 +36,7 @@ func (r repository) UpdateDeviceTokenTime(deviceToken, userID, groupID string) e
 	err := r.client.Exec(
 		`INSERT INTO device_tokens(device_token, user_id, group_id, last_sync) VALUES(?, ?, ?, ?) 
 				ON CONFLICT(device_token) DO UPDATE SET last_sync=excluded.last_sync, user_id=excluded.user_id, group_id=excluded.group_id;`,
-		deviceToken, userID, groupID, time.Now().Unix()).Error
+		deviceToken, userID, groupID, time.Now().UnixMicro()).Error
 	if err != nil {
 		return errors.Wrap(err, "failed to update device token time")
 	}
@@ -53,7 +53,7 @@ func (r repository) InsertData(deviceToken, groupID string, operations []*proto.
 				OperationType: op.Type.String(),
 				Sql:           op.Sql,
 				Args:          op.Args,
-				CreatedAt:     time.Now().Unix(),
+				CreatedAt:     time.Now().UnixMicro(),
 			}
 			err := tx.Create(operation).Error
 			if err != nil {
@@ -163,7 +163,7 @@ func (r repository) UpdateGroupID(userID, newGroupID string) error {
 
 func (r repository) MigrateData(fromID, toID string) error {
 	err := r.client.Exec(
-		`UPDATE operations SET group_id = ?, created_at = unixepoch() WHERE group_id = ?`, toID, fromID,
+		`UPDATE operations SET group_id = ?, created_at = ? WHERE group_id = ?`, toID, time.Now().UnixMicro(), fromID,
 	).Error
 	if err != nil {
 		return errors.Wrap(err, "failed to migrate data")
